@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrompTY — Biblioteka Promptów</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#f7f6f3;
+  --surface:#ffffff;
+  --surface2:#f0ede8;
+  --ink:#18180f;
+  --ink2:#5a5a4e;
+  --ink3:#9a9a8e;
+  --border:rgba(24,24,15,0.1);
+  --border2:rgba(24,24,15,0.2);
+  --accent:#2d6a4f;
+  --accent-bg:#e8f5ee;
+  --accent-text:#1a4332;
+  --tag-bg:#eeece7;
+  --tag-text:#4a4a3d;
+  --copy-ok:#2d6a4f;
+  --r:4px;
+  --sans:'IBM Plex Sans',sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+  --display:'Syne',sans-serif;
+}
+
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* ── TOP BAR ── */
+header{
+  position:sticky;top:0;z-index:50;
+  background:rgba(247,246,243,0.92);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  padding:0 2rem;
+  display:flex;align-items:center;gap:1.5rem;height:60px;
+}
+.logo{font-family:var(--display);font-size:1.05rem;font-weight:700;letter-spacing:-0.02em;white-space:nowrap}
+.logo em{font-style:normal;color:var(--accent)}
+
+.search-wrap{
+  flex:1;position:relative;max-width:520px;
+}
+.search-wrap svg{
+  position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  width:16px;height:16px;stroke:var(--ink3);stroke-width:2;fill:none;pointer-events:none;
+}
+#searchInput{
+  width:100%;background:var(--surface);
+  border:1px solid var(--border2);border-radius:var(--r);
+  padding:0.55rem 1rem 0.55rem 2.4rem;
+  font-family:var(--sans);font-size:0.875rem;color:var(--ink);
+  outline:none;transition:border-color 0.2s;
+}
+#searchInput::placeholder{color:var(--ink3)}
+#searchInput:focus{border-color:var(--accent)}
+
+.count-badge{
+  font-family:var(--mono);font-size:0.7rem;color:var(--ink3);
+  white-space:nowrap;
+}
+
+/* ── LAYOUT ── */
+.layout{display:flex;min-height:calc(100vh - 60px)}
+
+/* ── SIDEBAR ── */
+aside{
+  width:220px;flex-shrink:0;
+  padding:1.5rem 1rem;
+  border-right:1px solid var(--border);
+  position:sticky;top:60px;height:calc(100vh - 60px);
+  overflow-y:auto;
+}
+.sidebar-label{
+  font-family:var(--mono);font-size:0.62rem;letter-spacing:0.14em;
+  text-transform:uppercase;color:var(--ink3);
+  margin-bottom:0.75rem;padding:0 0.5rem;
+}
+.filter-group{margin-bottom:2rem}
+.filter-btn{
+  display:flex;align-items:center;justify-content:space-between;
+  width:100%;padding:0.45rem 0.6rem;
+  border:none;background:transparent;
+  font-family:var(--sans);font-size:0.85rem;color:var(--ink2);
+  cursor:pointer;border-radius:var(--r);text-align:left;
+  transition:background 0.15s,color 0.15s;
+}
+.filter-btn:hover{background:var(--surface2);color:var(--ink)}
+.filter-btn.active{background:var(--accent-bg);color:var(--accent-text);font-weight:500}
+.filter-btn .n{
+  font-family:var(--mono);font-size:0.68rem;color:var(--ink3);
+}
+.filter-btn.active .n{color:var(--accent)}
+
+/* ── MAIN ── */
+main{flex:1;padding:1.75rem 2rem;overflow:hidden}
+
+.toolbar{
+  display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;
+}
+.sort-select{
+  font-family:var(--mono);font-size:0.72rem;
+  border:1px solid var(--border2);background:var(--surface);
+  color:var(--ink2);padding:0.35rem 2rem 0.35rem 0.65rem;
+  border-radius:var(--r);outline:none;cursor:pointer;
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239a9a8e' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 0.6rem center;
+}
+.active-tags{display:flex;gap:0.4rem;flex-wrap:wrap;flex:1}
+.active-tag{
+  display:flex;align-items:center;gap:0.3rem;
+  font-family:var(--mono);font-size:0.68rem;
+  background:var(--accent-bg);color:var(--accent-text);
+  padding:0.25rem 0.6rem;border-radius:100px;cursor:pointer;
+}
+.active-tag:hover{background:#d4edde}
+
+/* ── GRID ── */
+#grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+  gap:1rem;
+}
+
+/* ── CARD ── */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:1.25rem;
+  display:flex;flex-direction:column;gap:0.75rem;
+  cursor:pointer;
+  transition:border-color 0.2s,box-shadow 0.2s,transform 0.15s;
+  position:relative;
+}
+.card:hover{
+  border-color:var(--border2);
+  box-shadow:0 4px 16px rgba(0,0,0,0.06);
+  transform:translateY(-1px);
+}
+.card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem}
+.card-cat{
+  font-family:var(--mono);font-size:0.62rem;letter-spacing:0.1em;
+  text-transform:uppercase;color:var(--accent);font-weight:500;
+}
+.card-difficulty{
+  font-family:var(--mono);font-size:0.6rem;
+  padding:0.2rem 0.5rem;border-radius:100px;
+}
+.diff-beginner{background:#e8f5ee;color:#1a4332}
+.diff-intermediate{background:#fef9e8;color:#7a5c00}
+.diff-advanced{background:#fce8e8;color:#7a1a1a}
+
+.card h3{
+  font-family:var(--display);font-size:0.95rem;font-weight:600;
+  line-height:1.3;color:var(--ink);
+}
+.card-prompt{
+  font-family:var(--mono);font-size:0.75rem;color:var(--ink2);
+  line-height:1.65;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.card-tags{display:flex;gap:0.35rem;flex-wrap:wrap;margin-top:auto}
+.tag{
+  font-family:var(--mono);font-size:0.62rem;
+  background:var(--tag-bg);color:var(--tag-text);
+  padding:0.2rem 0.55rem;border-radius:100px;
+}
+.card-actions{
+  display:flex;gap:0.5rem;margin-top:0.25rem;
+}
+.btn-copy,.btn-expand{
+  font-family:var(--mono);font-size:0.65rem;letter-spacing:0.06em;
+  padding:0.35rem 0.75rem;border-radius:var(--r);
+  border:1px solid var(--border2);background:transparent;
+  cursor:pointer;transition:all 0.15s;color:var(--ink2);
+}
+.btn-copy:hover{background:var(--accent);color:white;border-color:var(--accent)}
+.btn-copy.ok{background:var(--copy-ok);color:white;border-color:var(--copy-ok)}
+.btn-expand:hover{background:var(--surface2)}
+
+/* ── MODAL ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.4);
+  z-index:200;display:flex;align-items:center;justify-content:center;
+  padding:1rem;opacity:0;pointer-events:none;transition:opacity 0.2s;
+}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{
+  background:var(--surface);border-radius:12px;
+  max-width:640px;width:100%;max-height:90vh;overflow-y:auto;
+  padding:2rem;transform:translateY(8px);transition:transform 0.25s;
+  position:relative;
+}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-close{
+  position:absolute;top:1rem;right:1rem;
+  background:none;border:none;cursor:pointer;
+  color:var(--ink3);font-size:1.25rem;line-height:1;padding:0.25rem;
+}
+.modal-close:hover{color:var(--ink)}
+.modal-cat{
+  font-family:var(--mono);font-size:0.65rem;letter-spacing:0.12em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:0.6rem;
+}
+.modal h2{font-family:var(--display);font-size:1.4rem;font-weight:700;margin-bottom:1rem;line-height:1.2}
+.modal-prompt-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:6px;
+  padding:1.25rem;
+  font-family:var(--mono);font-size:0.82rem;line-height:1.8;
+  color:var(--ink);white-space:pre-wrap;word-break:break-word;
+  margin-bottom:1.25rem;
+}
+.modal-meta{display:flex;gap:1.5rem;margin-bottom:1rem;flex-wrap:wrap}
+.modal-meta-item{font-size:0.8rem;color:var(--ink2)}
+.modal-meta-item strong{color:var(--ink);font-weight:500}
+.modal-tags{display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.modal-actions{display:flex;gap:0.75rem}
+.btn-modal-copy{
+  flex:1;padding:0.75rem;
+  background:var(--ink);color:white;
+  border:none;border-radius:var(--r);
+  font-family:var(--mono);font-size:0.75rem;letter-spacing:0.08em;
+  cursor:pointer;transition:opacity 0.2s;
+}
+.btn-modal-copy:hover{opacity:0.85}
+.btn-modal-copy.ok{background:var(--copy-ok)}
+
+/* ── EMPTY ── */
+.empty{
+  text-align:center;padding:5rem 2rem;color:var(--ink3);
+  grid-column:1/-1;
+}
+.empty p{font-family:var(--mono);font-size:0.85rem;margin-top:0.5rem}
+
+/* ── RESPONSIVE ── */
+@media(max-width:700px){
+  aside{display:none}
+  header{padding:0 1rem;gap:0.75rem}
+  main{padding:1rem}
+  #grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Promp<em>TY</em></div>
+  <div class="search-wrap">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+    <input type="text" id="searchInput" placeholder="Szukaj promptów..." autocomplete="off">
+  </div>
+  <div class="count-badge" id="countBadge">— promptów</div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="filter-group">
+      <div class="sidebar-label">Kategoria</div>
+      <div id="catFilters"></div>
+    </div>
+    <div class="filter-group">
+      <div class="sidebar-label">Poziom</div>
+      <div id="diffFilters">
+        <button class="filter-btn active" data-diff="all">Wszystkie</button>
+        <button class="filter-btn" data-diff="beginner">Podstawowy</button>
+        <button class="filter-btn" data-diff="intermediate">Średni</button>
+        <button class="filter-btn" data-diff="advanced">Zaawansowany</button>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="toolbar">
+      <select class="sort-select" id="sortSelect">
+        <option value="default">Sortuj: domyślnie</option>
+        <option value="alpha">A → Z</option>
+        <option value="cat">Wg kategorii</option>
+      </select>
+      <div class="active-tags" id="activeTags"></div>
+    </div>
+    <div id="grid"></div>
+  </main>
+</div>
+
+<!-- FOOTER -->
+<footer style="border-top:1px solid var(--border);padding:1.25rem 2rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+  <span style="font-family:var(--mono);font-size:0.65rem;color:var(--ink3);line-height:1.6;max-width:780px;">
+    ⚠︎ Prompty w tej bibliotece są przykładowe i mogą wymagać dostosowania do konkretnego kontekstu, modelu AI oraz oczekiwanego rezultatu. Nie gwarantujemy ich skuteczności — traktuj je jako punkt wyjścia, nie gotowe rozwiązanie. Treści biblioteki nie stanowią porady prawnej, finansowej ani innej profesjonalnej.
+  </span>
+
+</footer>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <button class="modal-close" onclick="closeModalDirect()">✕</button>
+    <div class="modal-cat" id="mCat"></div>
+    <h2 id="mTitle"></h2>
+    <div class="modal-prompt-box" id="mPrompt"></div>
+    <div class="modal-meta" id="mMeta"></div>
+    <div class="modal-tags" id="mTags"></div>
+    <div class="modal-actions">
+      <button class="btn-modal-copy" id="mCopyBtn" onclick="copyModal()">Kopiuj prompt</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DB = [
+  // ── PISANIE ──
+  {id:1,cat:"Pisanie",title:"Artykuł ekspercki",difficulty:"intermediate",
+   prompt:`Jesteś doświadczonym dziennikarzem branżowym. Napisz artykuł ekspercki na temat: [TEMAT].
+
+Wymagania:
+- Długość: ok. 800 słów
+- Styl: autorytatywny, ale przystępny — bez zbędnego żargonu
+- Struktura: wstęp z hakiem, 3–4 sekcje z nagłówkami, podsumowanie z wezwaniem do działania
+- Dodaj 2–3 konkretne przykłady lub dane statystyczne (możesz je oznaczyć jako [do weryfikacji])
+- Unikaj ogólników — każde zdanie ma nieść konkretną wartość
+
+Pisz w czasie teraźniejszym, aktywna forma zdań.`,
+   tags:["blog","SEO","content"]},
+
+  {id:2,cat:"Pisanie",title:"Post LinkedIn (storytelling)",difficulty:"beginner",
+   prompt:`Napisz post na LinkedIn oparty na tej historii / obserwacji: [OPIS SYTUACJI].
+
+Format:
+- Pierwsza linia: mocny hak — pytanie lub zaskakujące stwierdzenie (max 15 słów)
+- Akapity 2–4 zdaniowe, dużo enterów (LinkedIn preferuje)
+- Kulminacja: konkretna lekcja lub insight
+- Zakończenie: pytanie angażujące komentarze
+
+Ton: szczery, osobisty, bez korporacyjnego slangu.
+Długość: 150–250 słów.`,
+   tags:["social media","personal brand","B2B"]},
+
+  {id:3,cat:"Pisanie",title:"Newsletter z historiami",difficulty:"intermediate",
+   prompt:`Napisz odcinek newslettera na temat: [TEMAT].
+
+Struktura:
+1. Nagłówek (tytuł + krótki teaser, max 2 zdania)
+2. Historia otwierająca — anegdota lub scenka, 80–120 słów
+3. Główna myśl — co ta historia ilustruje, 150–200 słów
+4. Praktyczny wniosek — 3 konkretne kroki lub obserwacje, każdy z nagłówkiem
+5. Zamknięcie — pytanie do czytelnika lub zapowiedź następnego odcinka
+
+Ton: jak rozmowa z mądrym znajomym. Używaj "ty" zamiast "Państwo".`,
+   tags:["newsletter","storytelling","content"]},
+
+  {id:4,cat:"Pisanie",title:"Rewrite — uprość tekst",difficulty:"beginner",
+   prompt:`Przepisz poniższy tekst tak, żeby był zrozumiały dla osoby bez specjalistycznej wiedzy.
+
+Zasady:
+- Zdania max 20 słów
+- Zamień każdy termin branżowy na proste słowo lub krótkie wyjaśnienie w nawiasie
+- Usuń pasywy — aktywna forma zdań
+- Zachowaj 100% oryginalnej treści, zmieniaj tylko formę
+
+Oryginalny tekst:
+[WKLEJ TEKST]`,
+   tags:["edycja","UX writing","komunikacja"]},
+
+  {id:5,cat:"Pisanie",title:"Email sprzedażowy (zimny)",difficulty:"advanced",
+   prompt:`Napisz zimny email sprzedażowy do: [OPIS ODBIORCY / FIRMA].
+
+Kontekst:
+- Oferuję: [PRODUKT / USŁUGA]
+- Główna korzyść: [BENEFIT]
+- Znany mi problem odbiorcy: [PAIN POINT]
+
+Wymagania:
+- Temat: max 8 słów, bez wykrzykników i clickbaitu
+- Długość emaila: max 120 słów
+- Nie zaczynaj od "Mam nadzieję, że..."
+- Jedno konkretne CTA na końcu (nie "daj znać jak myślisz")
+- Ton: partnerski, bez sprzedażowego nacisku`,
+   tags:["sprzedaż","outreach","B2B"]},
+
+  {id:6,cat:"Pisanie",title:"Biografia eksperta",difficulty:"beginner",
+   prompt:`Napisz krótką biografię zawodową w trzeciej osobie dla: [IMIĘ I NAZWISKO].
+
+Fakty do uwzględnienia:
+[LISTA OSIĄGNIĘĆ, DOŚWIADCZEŃ, SPECJALIZACJI]
+
+Warianty:
+1. Wersja krótka (50 słów) — do stopki emaila / social media
+2. Wersja średnia (120 słów) — do strony "O mnie"
+3. Wersja długa (250 słów) — do konferencji lub prasy
+
+Styl: profesjonalny, ale nie pompatyczny. Podkreśl konkretne wyniki, nie tylko stanowiska.`,
+   tags:["personal brand","PR","content"]},
+
+  // ── MARKETING ──
+  {id:7,cat:"Marketing",title:"Propozycja wartości (USP)",difficulty:"intermediate",
+   prompt:`Sformułuj unikalną propozycję wartości (USP) dla:
+- Produkt/usługa: [OPIS]
+- Rynek docelowy: [PERSONA]
+- Główni konkurenci: [KONKURENCI]
+
+Podaj 3 warianty USP w formacie:
+[Dla kogo] + [problem/potrzeba] + [rozwiązanie] + [kluczowa przewaga]
+
+Następnie wybierz najsilniejszy wariant i uzasadnij wybór w 2–3 zdaniach.
+
+Unikaj słów: innowacyjny, kompleksowy, wiodący, rewolucyjny.`,
+   tags:["strategia","positioning","copy"]},
+
+  {id:8,cat:"Marketing",title:"Analiza grupy docelowej",difficulty:"intermediate",
+   prompt:`Stwórz szczegółowy profil persony dla produktu/usługi: [OPIS].
+
+Uwzględnij:
+1. Dane demograficzne (wiek, zawód, dochód, lokalizacja)
+2. Cele i aspiracje (zawodowe i osobiste)
+3. Frustracje i bariery (co ich blokuje?)
+4. Gdzie spędza czas online (platformy, treści, twórcy)
+5. Jak podejmuje decyzje zakupowe (co weryfikuje, kogo pyta)
+6. Cytaty (2–3 zdania, jakby to osoba mówiła w pierwszej osobie)
+
+Format: zwarta narracja, nie suche punktory.`,
+   tags:["persona","research","strategia"]},
+
+  {id:9,cat:"Marketing",title:"Harmonogram treści (30 dni)",difficulty:"advanced",
+   prompt:`Zaplanuj 30-dniowy harmonogram treści dla marki: [OPIS MARKI].
+
+Parametry:
+- Kanały: [np. LinkedIn + newsletter]
+- Cel: [np. budowanie autorytetu / generowanie leadów]
+- Częstotliwość: [np. 3x tydzień LinkedIn, 1x newsletter]
+
+Dla każdej treści podaj:
+- Dzień i kanał
+- Temat / tytuł
+- Format (artykuł, karuzela, case study, pytanie...)
+- Cel danej publikacji (edukacja / zasięg / konwersja)
+
+Zróżnicuj formaty. Uwzględnij 20% treści sprzedażowej, 80% wartościowej.`,
+   tags:["content plan","social media","strategia"]},
+
+  {id:10,cat:"Marketing",title:"Nagłówki A/B do testowania",difficulty:"beginner",
+   prompt:`Napisz 10 wariantów nagłówka dla: [STRONA LĄDOWANIA / REKLAMA / EMAIL].
+
+Kontekst:
+- Produkt: [OPIS]
+- Główna obietnica: [BENEFIT]
+- Odbiorca: [PERSONA]
+
+Zrób po 2 nagłówki w każdym stylu:
+1. Korzyść bezpośrednia
+2. Pytanie
+3. Liczba / statystyka
+4. Negatywna rama ("Przestań tracić...")
+5. Social proof / FOMO
+
+Na końcu wskaż 3, które wg Ciebie warto przetestować jako pierwsze.`,
+   tags:["CRO","copy","A/B testing"]},
+
+  {id:11,cat:"Marketing",title:"Skrypt wideo / reels",difficulty:"intermediate",
+   prompt:`Napisz skrypt do krótkiego wideo (60–90 sekund) na temat: [TEMAT].
+
+Struktura:
+0–3 sek: hak — zaskakujące pytanie lub odważne stwierdzenie (mówione do kamery)
+3–15 sek: problem — dlaczego to ważne dla widza
+15–55 sek: rozwiązanie — 3 konkretne punkty, każdy 1–2 zdania
+55–70 sek: CTA — jedno działanie do podjęcia
+
+Wskazówki:
+- Pisz tak jak się mówi, nie jak się pisze
+- Krótkie zdania, pauzy zaznaczone jako [pauza]
+- Opcjonalne didaskalia: [b-roll: .....]`,
+   tags:["video","TikTok","Reels","YouTube"]},
+
+  // ── KOD ──
+  {id:12,cat:"Kod",title:"Code review z wyjaśnieniem",difficulty:"intermediate",
+   prompt:`Zrób code review poniższego kodu. 
+
+[WKLEJ KOD]
+
+Oceń w 4 obszarach:
+1. Poprawność — czy kod robi co powinien, potencjalne bugi
+2. Czytelność — naming, struktura, komentarze
+3. Wydajność — nieefektywne operacje, zbędne pętle/zapytania
+4. Bezpieczeństwo — potencjalne podatności
+
+Format: dla każdego problemu podaj:
+- Linia (jeśli możliwe)
+- Opis problemu
+- Poprawiony fragment kodu
+- Priorytet: [KRYTYCZNY / WAŻNY / STYL]`,
+   tags:["review","jakość","debugging"]},
+
+  {id:13,cat:"Kod",title:"Dokumentacja funkcji / API",difficulty:"beginner",
+   prompt:`Wygeneruj dokumentację dla poniższego kodu:
+
+[WKLEJ KOD]
+
+Format wyjścia:
+- Opis ogólny (1–2 zdania co robi)
+- Parametry: nazwa | typ | opis | wymagany?
+- Zwracana wartość: typ + opis
+- Przykłady użycia: min. 2 (podstawowy + edge case)
+- Potencjalne wyjątki / błędy
+- Uwagi (jeśli są nieintuicyjne zachowania)
+
+Użyj konwencji JSDoc / docstring Python / stosownej dla języka kodu.`,
+   tags:["dokumentacja","API","DX"]},
+
+  {id:14,cat:"Kod",title:"Refactoring — czytelność",difficulty:"intermediate",
+   prompt:`Przepisz poniższy kod poprawiając jego czytelność bez zmiany funkcjonalności.
+
+[WKLEJ KOD]
+
+Zasady:
+- Nazwy zmiennych i funkcji muszą być opisowe (nie: d, tmp, x)
+- Wydziel powtarzającą się logikę do oddzielnych funkcji
+- Usuń zbędne komentarze ("increments counter" przy i++)
+- Zachowaj komentarze wyjaśniające DLACZEGO, nie JAK
+- Nie zmieniaj bibliotek ani architektury
+
+Na końcu podsumuj co zmieniłeś i dlaczego.`,
+   tags:["refactoring","clean code","maintenance"]},
+
+  {id:15,cat:"Kod",title:"Generowanie testów jednostkowych",difficulty:"advanced",
+   prompt:`Napisz testy jednostkowe dla poniższej funkcji/modułu:
+
+[WKLEJ KOD]
+
+Pokryj:
+1. Happy path — typowe użycie
+2. Edge cases — puste wartości, null, skrajne liczby
+3. Error cases — nieprawidłowe wejście, oczekiwane wyjątki
+4. Boundary conditions — limity, typy graniczne
+
+Użyj: [jest / pytest / inny framework — lub dopasuj do języka].
+Każdy test z czytelną nazwą opisującą scenariusz.
+Min. 8 testów.`,
+   tags:["testing","TDD","jakość"]},
+
+  {id:16,cat:"Kod",title:"Debugowanie — analiza błędu",difficulty:"beginner",
+   prompt:`Pomóż mi zdebugować poniższy błąd.
+
+Error message:
+[WKLEJ BŁĄD]
+
+Kod:
+[WKLEJ KOD]
+
+Kontekst:
+- Język / środowisko: [np. Node.js 20, Python 3.11]
+- Co robiłem gdy wystąpił: [OPIS]
+- Co już próbowałem: [LISTA]
+
+Podaj:
+1. Prawdopodobna przyczyna (1–3 hipotezy)
+2. Jak zweryfikować każdą hipotezę
+3. Konkretne rozwiązanie dla najbardziej prawdopodobnej
+4. Jak zapobiec w przyszłości`,
+   tags:["debugging","problem solving"]},
+
+  // ── ANALIZA ──
+  {id:17,cat:"Analiza",title:"SWOT — analiza firmy / projektu",difficulty:"intermediate",
+   prompt:`Przeprowadź analizę SWOT dla: [FIRMA / PRODUKT / PROJEKT].
+
+Kontekst:
+[PODAJ ZNANE CI INFORMACJE]
+
+Dla każdej kategorii podaj 4–6 konkretnych punktów (nie ogólników):
+- Silne strony (wewnętrzne, kontrolowalne)
+- Słabe strony (wewnętrzne, do poprawy)
+- Szanse (zewnętrzne, do wykorzystania)
+- Zagrożenia (zewnętrzne, wymagające uwagi)
+
+Na końcu: 3 strategiczne rekomendacje wynikające z analizy (SO, WO lub ST).`,
+   tags:["strategia","business","frameworks"]},
+
+  {id:18,cat:"Analiza",title:"Analiza konkurencji",difficulty:"advanced",
+   prompt:`Przeanalizuj konkurencję dla: [FIRMA / PRODUKT].
+
+Znani konkurenci: [LISTA]
+
+Dla każdego konkurenta oceń:
+1. Pozycjonowanie i USP
+2. Segment klientów
+3. Kanały akwizycji (widoczne z zewnątrz)
+4. Silne strony
+5. Słabe strony / luki
+
+Następnie:
+- Mapa pozycjonowania (opisz gdzie każdy gracz się mieści na osiach: [OŚ 1] vs [OŚ 2])
+- Niezagospodarowane nisze
+- Rekomendacja gdzie się pozycjonować
+
+Bądź konkretny, unikaj "oferują szeroką gamę produktów".`,
+   tags:["konkurencja","strategia","research"]},
+
+  {id:19,cat:"Analiza",title:"Priorytyzacja zadań (RICE / MoSCoW)",difficulty:"intermediate",
+   prompt:`Pomóż mi spriorytetyzować poniższe zadania / funkcje:
+
+[LISTA ZADAŃ]
+
+Zastosuj dwie metody:
+
+1. MoSCoW:
+- Must have / Should have / Could have / Won't have
+- Kryterium: wpływ na cel [PODAJ CEL]
+
+2. RICE Score dla top 5:
+- Reach, Impact, Confidence, Effort (1–10)
+- Wylicz RICE = (R × I × C) / E
+
+Przedstaw wynik jako tabelę i wskaż kolejność realizacji.`,
+   tags:["produktywność","PM","frameworks"]},
+
+  {id:20,cat:"Analiza",title:"Post-mortem projektu",difficulty:"intermediate",
+   prompt:`Przeprowadź strukturyzowany post-mortem projektu: [NAZWA PROJEKTU].
+
+Kontekst:
+- Co miało się wydarzyć: [PLAN]
+- Co się faktycznie wydarzyło: [WYNIK]
+- Czas trwania / zasoby: [DANE]
+
+Analiza:
+1. Co poszło dobrze (utrzymać na przyszłość)
+2. Co poszło źle (z podziałem na: ludzkie / procesowe / techniczne)
+3. Root cause analysis głównego problemu (5x Dlaczego)
+4. Konkretne zmiany procesowe na przyszłość
+5. Czego się nauczyliśmy
+
+Ton: bez szukania winnych, skupiony na systemie.`,
+   tags:["PM","retrospekcja","procesy"]},
+
+  // ── EDUKACJA ──
+  {id:21,cat:"Edukacja",title:"Wyjaśnij jak dla 10-latka",difficulty:"beginner",
+   prompt:`Wyjaśnij pojęcie: [TEMAT] tak, żeby zrozumiało je dziecko w wieku 10 lat.
+
+Zasady:
+- Zacznij od analogii do czegoś z codziennego życia dziecka
+- Używaj prostych, krótkich zdań
+- Unikaj słów obcych — jeśli musisz użyć, wyjaśnij je od razu
+- Dodaj jeden konkretny przykład
+- Na końcu: 2–3 pytania, które dziecko mogłoby zadać, i krótkie odpowiedzi
+
+Nie upraszczaj niepoprawnie — treść musi być prawdziwa.`,
+   tags:["edukacja","komunikacja","uproszczenie"]},
+
+  {id:22,cat:"Edukacja",title:"Plan nauki (6 tygodni)",difficulty:"intermediate",
+   prompt:`Stwórz 6-tygodniowy plan nauki dla: [TEMAT / UMIEJĘTNOŚĆ].
+
+Mój poziom startowy: [OPIS]
+Dostępny czas: [np. 5 godzin tygodniowo]
+Cel końcowy: [CO CHCĘ UMIEĆ]
+
+Dla każdego tygodnia:
+- Główny temat / kamień milowy
+- Konkretne zasoby (typy: książka, kurs, praktyka, projekt)
+- Ćwiczenie praktyczne na koniec tygodnia
+- Jak zmierzyć postęp
+
+Na końcu: 3 najczęstsze pułapki przy nauce tego tematu i jak ich uniknąć.`,
+   tags:["nauka","plan","samorozwój"]},
+
+  {id:23,cat:"Edukacja",title:"Flashcards — zestaw pytań",difficulty:"beginner",
+   prompt:`Stwórz 20 kart pytanie–odpowiedź (flashcards) do nauki: [TEMAT].
+
+Format każdej karty:
+P: [pytanie]
+O: [odpowiedź — max 2 zdania, konkretna]
+
+Zasady:
+- Zróżnicuj typy pytań: definicja, zastosowanie, "dlaczego", porównanie, przykład
+- Pytania muszą być precyzyjne (unikaj "co to jest X?" — to zbyt ogólne)
+- Odpowiedź powinna być sprawdzalna — albo dobrze albo źle
+- Posortuj od łatwych do trudnych`,
+   tags:["flashcards","repetition","egzamin"]},
+
+  {id:24,cat:"Edukacja",title:"Sokrates — sesja pytań",difficulty:"advanced",
+   prompt:`Chcę zrozumieć głębiej: [TEMAT].
+
+Prowadź ze mną dialog w stylu sokratejskim:
+1. Zacznij od 1 pytania badającego moje założenia
+2. Na każdą moją odpowiedź reaguj kolejnym pytaniem pogłębiającym lub kwestionującym
+3. Nie podawaj gotowych odpowiedzi — pomagaj mi dojść do nich samemu
+4. Jeśli moja odpowiedź jest błędna, zadaj pytanie które to ujawni
+5. Po 8–10 rundach podsumuj co odkryliśmy i gdzie są luki w moim rozumowaniu
+
+Zacznij teraz.`,
+   tags:["Sokrates","krytyczne myślenie","filozofia"]},
+
+  // ── BIZNES ──
+  {id:25,cat:"Biznes",title:"Executive summary (inwestorzy)",difficulty:"advanced",
+   prompt:`Napisz executive summary dla inwestorów dla projektu: [NAZWA].
+
+Fakty:
+- Problem: [OPIS]
+- Rozwiązanie: [OPIS]
+- Rynek docelowy: [TAM/SAM/SOM lub opis]
+- Model biznesowy: [OPIS]
+- Trakcja: [METRYKI, KLIENCI, PRZYCHODY]
+- Zespół: [SKŁAD]
+- Zapotrzebowanie: [KWOTA] na [CEL]
+
+Wymagania dokumentu:
+- Max 1 strona (300–350 słów)
+- Zacznij od problemu, nie od produktu
+- Każde zdanie uzasadnione faktem lub liczbą
+- Ton: pewny, konkretny — bez "planujemy zrewolucjonizować"`,
+   tags:["startup","fundraising","pitch"]},
+
+  {id:26,cat:"Biznes",title:"Oferta handlowa (propozycja)",difficulty:"intermediate",
+   prompt:`Napisz propozycję handlową dla klienta: [NAZWA KLIENTA / TYP].
+
+Kontekst:
+- Co oferuję: [USŁUGA / PRODUKT]
+- Problem klienta (zidentyfikowany): [OPIS]
+- Zakres współpracy: [SZCZEGÓŁY]
+- Budżet / cennik: [OPCJONALNIE]
+
+Struktura dokumentu:
+1. Podsumowanie dla decydenta (3 zdania — problem, rozwiązanie, wynik)
+2. Zrozumienie sytuacji klienta
+3. Proponowane rozwiązanie (konkretnie)
+4. Proces / harmonogram
+5. Inwestycja (cena + co zawiera)
+6. Następny krok (jedno konkretne działanie)
+
+Ton: partnerski, nie sprzedażowy.`,
+   tags:["sprzedaż","B2B","ofertowanie"]},
+
+  {id:27,cat:"Biznes",title:"OKRs na kwartał",difficulty:"intermediate",
+   prompt:`Zaproponuj OKRs (Objectives & Key Results) na najbliższy kwartał dla: [FIRMA / DZIAŁ / OSOBA].
+
+Kontekst:
+- Główny cel strategiczny tego okresu: [OPIS]
+- Dostępne zasoby / ograniczenia: [OPIS]
+- Co nie poszło w poprzednim kwartale: [OPCJONALNIE]
+
+Format:
+Objective 1: [inspirujące, jakościowe]
+- KR 1.1: [mierzalny, z liczbą]
+- KR 1.2: [mierzalny, z liczbą]
+- KR 1.3: [mierzalny, z liczbą]
+
+Zasady:
+- Max 3 Objectives
+- Każdy KR musi mieć baseline i target
+- 60–70% realizacji = sukces (ambitne, ale realne)`,
+   tags:["OKR","cele","management"]},
+
+  {id:28,cat:"Biznes",title:"Wycena usługi / projektu",difficulty:"advanced",
+   prompt:`Pomóż mi wycenić projekt / usługę: [OPIS].
+
+Parametry:
+- Typ projektu: [JEDNORAZOWY / RETAINER / PRODUKT]
+- Szacowany czas: [GODZINY / DNI]
+- Moja stawka godzinowa (lub docelowy dochód): [KWOTA]
+- Poziom ryzyka / złożoności: [NISKI / ŚREDNI / WYSOKI]
+
+Oblicz:
+1. Wycena oparta na czasie (koszty + marża)
+2. Wycena oparta na wartości dla klienta
+3. Rekomendacja (który model zastosować i dlaczego)
+
+Uwzględnij: bufor na poprawki, komunikację, zarządzanie projektem (typowo +20–30%).
+Dodaj wskazówkę jak zaprezentować cenę klientowi.`,
+   tags:["freelance","pricing","negocjacje"]},
+
+  // ── PRODUKTYWNOŚĆ ──
+  {id:29,cat:"Produktywność",title:"Delegowanie zadania",difficulty:"beginner",
+   prompt:`Napisz instrukcję delegowania zadania dla: [OSOBA / ROLA].
+
+Zadanie: [OPIS ZADANIA]
+
+Instrukcja powinna zawierać:
+1. Cel zadania i dlaczego to ważne (kontekst, nie tylko "co")
+2. Definicja ukończenia — jak wygląda dobry wynik?
+3. Zasoby i dostępy jakie osoba otrzymuje
+4. Checkpointy — kiedy i co raportować
+5. Decyzje które może podjąć samodzielnie
+6. Decyzje które musi eskalować do mnie
+7. Deadline i priorytety jeśli jest kilka zadań
+
+Styl: jasny i konkretny, nie mikrozarządzający.`,
+   tags:["zarządzanie","delegowanie","leadership"]},
+
+  {id:30,cat:"Produktywność",title:"Agenda spotkania",difficulty:"beginner",
+   prompt:`Przygotuj agendę spotkania.
+
+Dane:
+- Cel spotkania: [OPIS]
+- Uczestnicy: [ROLE / IMIONA]
+- Czas: [np. 60 minut]
+- Kluczowe decyzje do podjęcia: [LISTA]
+- Znane napięcia / kontrowersje: [OPCJONALNIE]
+
+Format agendy:
+- Tytuł i czas trwania każdego punktu
+- Właściciel każdego punktu (kto prowadzi)
+- Oczekiwany output (decyzja / informacja / burza mózgów)
+
+Dodaj: 5-minutowy bufor na początku (check-in) i 5-minutowe podsumowanie action items na końcu.`,
+   tags:["spotkania","facilitation","procesy"]},
+
+  {id:31,cat:"Produktywność",title:"Tygodniowy przegląd (GTD)",difficulty:"intermediate",
+   prompt:`Przeprowadź ze mną tygodniowy przegląd w stylu GTD (Getting Things Done).
+
+Poproś mnie kolejno o:
+1. Co zrobiłem w tym tygodniu (główne osiągnięcia)
+2. Co planowałem, a nie zrobiłem — i dlaczego
+3. Co mam na głowie (brain dump — wszystko czym się martwię / pamiętam)
+4. Przegląd projektów — czy każdy ma zdefiniowany następny krok?
+5. Przegląd kalendarza na przyszły tydzień
+6. Priorytety na nadchodzący tydzień (max 3 "big rocks")
+
+Dla każdego punktu zadaj mi pytanie, poczekaj na odpowiedź, skomentuj i przejdź dalej.
+Na końcu podsumuj tygodniowy przegląd w formie bullet points.`,
+   tags:["GTD","produktywność","planowanie"]},
+
+  {id:32,cat:"Produktywność",title:"Second Brain — notatka Zettelkasten",difficulty:"advanced",
+   prompt:`Przekształć poniższy surowy materiał (notatki, artykuł, myśli) w notatkę w systemie Zettelkasten.
+
+Materiał:
+[WKLEJ TREŚĆ]
+
+Format notatki:
+- ID: [YYYYMMDD-HHMM]
+- Tytuł: jedno konkretne zdanie twierdzące (nie pytanie, nie opis)
+- Treść: 100–200 słów — własnym słowami, bez cytatów
+- Linki do innych pojęć: [[POJĘCIE]] — zaproponuj 3–5 potencjalnych linków
+- Źródło: [AUTOR, TYTUŁ, ROK]
+- Tagi: #tag1 #tag2 #tag3
+
+Zasady: jedna idea = jedna notatka. Jeśli materiał zawiera wiele idei, zasugeruj podział.`,
+   tags:["PKM","Zettelkasten","notatki"]}
+];
+
+// ── STATE ──
+let activeCat = 'all';
+let activeDiff = 'all';
+let searchQuery = '';
+let sortMode = 'default';
+let currentPrompt = null;
+
+// ── BUILD SIDEBAR ──
+function buildSidebar() {
+  const cats = ['all', ...new Set(DB.map(p => p.cat))];
+  const catDiv = document.getElementById('catFilters');
+  cats.forEach(cat => {
+    const count = cat === 'all' ? DB.length : DB.filter(p => p.cat === cat).length;
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn' + (cat === 'all' ? ' active' : '');
+    btn.dataset.cat = cat;
+    btn.innerHTML = `${cat === 'all' ? 'Wszystkie' : cat} <span class="n">${count}</span>`;
+    btn.addEventListener('click', () => {
+      activeCat = cat;
+      document.querySelectorAll('[data-cat]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    });
+    catDiv.appendChild(btn);
+  });
+
+  document.querySelectorAll('[data-diff]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeDiff = btn.dataset.diff;
+      document.querySelectorAll('[data-diff]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    });
+  });
+}
+
+// ── FILTER & SORT ──
+function getFiltered() {
+  let list = DB.slice();
+  if (activeCat !== 'all') list = list.filter(p => p.cat === activeCat);
+  if (activeDiff !== 'all') list = list.filter(p => p.difficulty === activeDiff);
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    list = list.filter(p =>
+      p.title.toLowerCase().includes(q) ||
+      p.prompt.toLowerCase().includes(q) ||
+      p.tags.some(t => t.toLowerCase().includes(q)) ||
+      p.cat.toLowerCase().includes(q)
+    );
+  }
+  if (sortMode === 'alpha') list.sort((a,b) => a.title.localeCompare(b.title, 'pl'));
+  if (sortMode === 'cat') list.sort((a,b) => a.cat.localeCompare(b.cat, 'pl'));
+  return list;
+}
+
+// ── RENDER ──
+function render() {
+  const list = getFiltered();
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  document.getElementById('countBadge').textContent = `${list.length} promptów`;
+
+  // active tags
+  const at = document.getElementById('activeTags');
+  at.innerHTML = '';
+  if (activeCat !== 'all') at.appendChild(makeActiveTag(activeCat, () => { activeCat='all'; document.querySelector('[data-cat="all"]').click(); }));
+  if (activeDiff !== 'all') {
+    const labels = {beginner:'Podstawowy',intermediate:'Średni',advanced:'Zaawansowany'};
+    at.appendChild(makeActiveTag(labels[activeDiff], () => { activeDiff='all'; document.querySelector('[data-diff="all"]').click(); }));
+  }
+  if (searchQuery) at.appendChild(makeActiveTag(`"${searchQuery}"`, () => { searchQuery=''; document.getElementById('searchInput').value=''; render(); }));
+
+  if (!list.length) {
+    grid.innerHTML = '<div class="empty"><strong>Brak wyników</strong><p>Spróbuj innego słowa kluczowego lub filtra.</p></div>';
+    return;
+  }
+  list.forEach(p => grid.appendChild(makeCard(p)));
+}
+
+function makeActiveTag(text, onRemove) {
+  const el = document.createElement('span');
+  el.className = 'active-tag';
+  el.innerHTML = `${text} ✕`;
+  el.addEventListener('click', onRemove);
+  return el;
+}
+
+function makeCard(p) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const diffLabel = {beginner:'Podstawowy',intermediate:'Średni',advanced:'Zaawansowany'};
+  card.innerHTML = `
+    <div class="card-top">
+      <span class="card-cat">${p.cat}</span>
+      <span class="card-difficulty diff-${p.difficulty}">${diffLabel[p.difficulty]}</span>
+    </div>
+    <h3>${p.title}</h3>
+    <div class="card-prompt">${p.prompt}</div>
+    <div class="card-tags">${p.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+    <div class="card-actions">
+      <button class="btn-copy" data-id="${p.id}">Kopiuj</button>
+      <button class="btn-expand" data-id="${p.id}">Otwórz →</button>
+    </div>`;
+  card.querySelector('.btn-copy').addEventListener('click', e => { e.stopPropagation(); copyCard(p, e.currentTarget); });
+  card.querySelector('.btn-expand').addEventListener('click', e => { e.stopPropagation(); openModal(p); });
+  card.addEventListener('click', () => openModal(p));
+  return card;
+}
+
+function copyCard(p, btn) {
+  navigator.clipboard.writeText(p.prompt).then(() => {
+    btn.textContent = 'Skopiowano ✓';
+    btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = 'Kopiuj'; btn.classList.remove('ok'); }, 2000);
+  });
+}
+
+// ── MODAL ──
+function openModal(p) {
+  currentPrompt = p;
+  const diffLabel = {beginner:'Podstawowy',intermediate:'Średni',advanced:'Zaawansowany'};
+  document.getElementById('mCat').textContent = p.cat;
+  document.getElementById('mTitle').textContent = p.title;
+  document.getElementById('mPrompt').textContent = p.prompt;
+  document.getElementById('mMeta').innerHTML = `
+    <span class="modal-meta-item"><strong>Poziom:</strong> ${diffLabel[p.difficulty]}</span>
+    <span class="modal-meta-item"><strong>Słowa:</strong> ${p.prompt.split(/\s+/).length}</span>`;
+  document.getElementById('mTags').innerHTML = p.tags.map(t=>`<span class="tag">${t}</span>`).join('');
+  const btn = document.getElementById('mCopyBtn');
+  btn.textContent = 'Kopiuj prompt';
+  btn.classList.remove('ok');
+  document.getElementById('modalOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModalDirect();
+}
+function closeModalDirect() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModalDirect(); });
+
+function copyModal() {
+  if (!currentPrompt) return;
+  navigator.clipboard.writeText(currentPrompt.prompt).then(() => {
+    const btn = document.getElementById('mCopyBtn');
+    btn.textContent = 'Skopiowano ✓';
+    btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = 'Kopiuj prompt'; btn.classList.remove('ok'); }, 2000);
+  });
+}
+
+// ── SEARCH ──
+let searchTimer;
+document.getElementById('searchInput').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { searchQuery = e.target.value.trim(); render(); }, 180);
+});
+
+// ── SORT ──
+document.getElementById('sortSelect').addEventListener('change', e => { sortMode = e.target.value; render(); });
+
+// ── INIT ──
+buildSidebar();
+render();
+</script>
+</body>
+</html>
